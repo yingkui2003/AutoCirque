@@ -6,6 +6,7 @@
 # 
 # Author: Dr. Yingkui Li
 # Created:     09/21-12/29/2020
+# modified:    09/07-10/01/2021
 # Department of Geography, University of Tennessee
 # Knoxville, TN 37996
 #-------------------------------------------------------------------------------
@@ -20,84 +21,36 @@ import numpy as np
 arcpy.env.overwriteOutput = True
 arcpy.env.XYTolerance= "0.01 Meters"
 
-arcpy.Delete_management("in_memory") ### Empty the in_memory
-
-try:
-    if arcpy.CheckExtension("Spatial")=="Available":
-        arcpy.CheckOutExtension("Spatial")
-    else:
-        print "not extension available"
-except:
-    print "unable to check out extension"
-
-try:
-    if arcpy.CheckExtension("3D")=="Available":
-        arcpy.CheckOutExtension("3D")
-    else:
-        print "not extension available"
-except:
-    print "unable to check out extension"
-
-#---------------------------------------------------------------------------------------------------------------
-# This function derives the boundary based on the skyline analysis
-#--------------------------------------------------------------------------------------------------------------- 
-def SkylineBoundaryExtract(inDEM, instreams, wspoly, Elevationshift, outpoly):
-    arcpy.env.extent = inDEM
-    ##Simplify stream
-    simplestreams = "in_memory\\simplestreams"
-    arcpy.cartography.SimplifyLine(instreams, simplestreams,"POINT_REMOVE", 5)
-
-    ##Stream to points
-    streampoints = "in_memory\\streampoints"
-    arcpy.FeatureVerticesToPoints_management(simplestreams, streampoints, "ALL")
+ArcGISPro = 0
+arcpy.AddMessage("The current python version is: " + str(sys.version_info[0]))
+if sys.version_info[0] == 2:  ##For ArcGIS 10, need to check the 3D and Spatial Extensions
     try:
-        ##DEM adds Elevationshift
-        outDEM = Plus(inDEM, Elevationshift)
-
-        streampoints3D = "in_memory\\streampoints3D"
-        arcpy.InterpolateShape_3d(outDEM, streampoints, streampoints3D)
-
-        #Skyline
-        skylineFc = "in_memory\\skylineFc"
-        arcpy.Skyline_3d(streampoints3D, skylineFc, inDEM)
-
-        ##Skyline to points
-        SkylinePoints = "in_memory\\SkylinePoints"
-        arcpy.FeatureVerticesToPoints_management(skylineFc, SkylinePoints, "ALL")
-
-        #Point density
-        pdensOut = PointDensity(SkylinePoints, "NONE", 30, NbrCircle(30, "MAP"))
-
-        outCon = Con(pdensOut > 2, 1,0)
-
-        wsline = "in_memory\\wsline"
-        arcpy.PolygonToLine_management(wspoly, wsline)
-
-        #Thin
-        thinOut = Thin(outCon, "ZERO", "FILTER", "ROUND", "#")
-        thinployline = "in_memory\\thinployline"
-        arcpy.RasterToPolyline_conversion (thinOut, thinployline)
-
-        ##Feature to polygon
-        thinpolygon = "in_memory\\thinpolygon"
-        arcpy.FeatureToPolygon_management([thinployline,wsline], thinpolygon)
-        
-        ##Select the polygons that intersect with the turning points
-        poly_layer = arcpy.MakeFeatureLayer_management(thinpolygon, "in_memory\\poly_layer")
-        stream_layer = arcpy.MakeFeatureLayer_management(instreams, "in_memory\\stream_layer")
-        arcpy.SelectLayerByLocation_management(poly_layer,"INTERSECT", stream_layer,"1 METERS","NEW_SELECTION","")
-
-        selcount = int(arcpy.GetCount_management(poly_layer)[0])
-        if selcount > 0:
-            arcpy.Dissolve_management(poly_layer, outpoly)
+        if arcpy.CheckExtension("Spatial")=="Available":
+            arcpy.CheckOutExtension("Spatial")
         else:
-            arcpy.CopyFeatures_management(wspoly, outpoly)
+            raise Exception ("not extension available")
+            #print "not extension available"
+    except:
+        raise Exception ("unable to check out extension")
+        #print "unable to check out extension"
 
-    except arcpy.ExecuteError:
-        arcpy.CopyFeatures_management(wspoly, outpoly)
+    try:
+        if arcpy.CheckExtension("3D")=="Available":
+            arcpy.CheckOutExtension("3D")
+        else:
+            raise Exception ("not extension available")
+            #print "not extension available"
+    except:
+        raise Exception ("unable to check out extension")
+        #print "unable to check out extension"
+elif sys.version_info[0] == 3:  ##For ArcGIS Pro
+    ArcGISPro = 1
+    #pass ##No need to Check
+else:
+    raise Exception("Must be using Python 2.x or 3.x")
+    exit()   
 
-    return outpoly
-
+ 
 #------------------------------------------------------------------------------------------------------------
 # This function smooths the line by removing the big turns.
 #------------------------------------------------------------------------------------------------------------
@@ -115,11 +68,29 @@ def remove_bigturn(line, max_angle):
     pointarray = arcpy.da.FeatureClassToNumPyArray("in_memory\\line_points", ('SHAPE@X', 'SHAPE@Y',field))
     line_ids = np.array([item[2] for item in pointarray])
     unique_line_ids = np.unique(line_ids)
-
+    
     for fid in unique_line_ids:
         arr = pointarray[line_ids == fid]
-        b = zip(*arr)
-        points = np.array(list(zip(b[0],b[1])))
+        #arcpy.AddMessage(str(len(arr)))
+        pntx = []
+        pnty = []
+        for i in range(len(arr)):
+            pntx.append(arr[i][0])
+            pnty.append(arr[i][1])
+        #b = zip(*arr) ##This only works in ArcGIS not ArcGIS Pro
+
+        #arcpy.AddMessage("pnty")
+        #arcpy.AddMessage(pnty)
+        
+        #b3 = b2.T
+        #arcpy.AddMessage("b2")
+        #arcpy.AddMessage(b3)
+        
+        points = np.array(list(zip(pntx,pnty)))
+        
+        #points = np.array(list(zip(b3[0],b3[1])))
+        #arcpy.AddMessage("points")
+        #arcpy.AddMessage(points)
 
         turn_count = 1
         while turn_count > 0:
@@ -152,9 +123,12 @@ def remove_bigturn(line, max_angle):
                         points[row][1] = midpoint[1]
                         arr[row][0] = midpoint[0]
                         arr[row][1] = midpoint[1]
-            print turn_count
+            ##print turn_count
         ##Make the new feature class
         numpy_array_to_features(new_line, arr, ['SHAPE@X', 'SHAPE@Y'], field)
+
+    ##Delete the created in-memory dataset
+    arcpy.Delete_management ("in_memory\\line_points")
 
     return new_line
 
@@ -213,23 +187,28 @@ def numpy_array_to_features(in_fc, in_array, geom_fields, id_field):
  
     return      
 
-def BoundaryRefineBySlope(dem, slopeRaster, stream, max_slope, min_slope, max_angle):
+       
+#------------------------------------------------------------------------------------------------------------
+# This function refine the boundary based on the slope analysis.
+#------------------------------------------------------------------------------------------------------------
+def BoundaryRefineBySlope(dem, slopeRaster, outpnt, max_slope, min_slope, max_angle):
     ##Test the process to just obtain the slope of >27 and the gentle area close to the stream
     sloperange = max_slope - min_slope  ##the smallest angle is 20
     bndcleanpoly = "in_memory\\bndcleanpoly"
-    sel_zero_poly = "in_memory\\sel_zero_poly"
-    sel_zero_poly_over_stream = "in_memory\\sel_zero_poly_over_stream"
+    #sel_zero_poly = "in_memory\\sel_zero_poly"
+    sel_poly_over_outpnt = "in_memory\\sel_poly_over_outpnt"
     sel_slope_poly = "in_memory\\sel_slope_poly"
-
+    refinedPoly = "in_memory\\refinedPoly"
+    
     for i in range (sloperange):
         angle = max_slope - i
         arcpy.AddMessage( "Processing headwall angle: " + str(angle))
         #print angle
         slp_gt = Con(slopeRaster > angle, 1, 0) ##make a big difference is not use 0
-        OutBndCln = BoundaryClean(slp_gt)##, "ASCEND", "TWO_WAY")
+        OutBndCln = BoundaryClean(slp_gt)#, "DESCEND", "ONE_WAY")
         arr = arcpy.RasterToNumPyArray(OutBndCln,nodata_to_value=0)
         if arr.sum() > 0:
-            arcpy.RasterToPolygon_conversion(OutBndCln, bndcleanpoly, "#","VALUE")
+            arcpy.RasterToPolygon_conversion(OutBndCln, bndcleanpoly, "NO_SIMPLIFY","VALUE")
             polyarray = arcpy.da.FeatureClassToNumPyArray(bndcleanpoly,['SHAPE@AREA', 'gridcode'])
             polyarea = np.array([item[0] for item in polyarray])
             con_code = np.array([item[1] for item in polyarray])
@@ -239,64 +218,78 @@ def BoundaryRefineBySlope(dem, slopeRaster, stream, max_slope, min_slope, max_an
                 num_big_poly = (polyarea > area_cutoff).sum()
                 if num_big_poly < 2:
                     flag = 1
-                    #arcpy.AddMessage( "The flag 01 is: " + str(flag))
                 else:
                     flag = 0
-                    #arcpy.AddMessage( "The flag 02 is: " + str(flag))
             else:
-                flag = 1
-                #arcpy.AddMessage( "The flag 03 is: " + str(flag))
+                flag = 1 ##why?? set this as 1
         else:
             slp_gt = Con(slopeRaster > 0, 1)
-            #arr = arcpy.RasterToNumPyArray(slp_gt,nodata_to_value=0)
-            #arcpy.AddMessage("the slope raster length is: " + str(len(arr)))            
-            arcpy.RasterToPolygon_conversion(slp_gt, bndcleanpoly, "#","VALUE")
+            arcpy.RasterToPolygon_conversion(slp_gt, bndcleanpoly, "NO_SIMPLIFY","VALUE")
             flag = 0
-            #arcpy.AddMessage( "The flag 04 is: " + str(flag))
 
-        #arcpy.AddMessage( "The flag is: " + str(flag))
         
         if flag > 0: ##check if the polygon is bigger enough to make the stream within the slopped valley
-            #Spatial join to select the polygon interested with the stream
-            arcpy.Select_analysis(bndcleanpoly, sel_zero_poly, "gridcode < 1")
-            arcpy.SpatialJoin_analysis(sel_zero_poly, stream, sel_zero_poly_over_stream, "JOIN_ONE_TO_ONE", "KEEP_COMMON", '#', "INTERSECT", "1 Meters", "#")
+            ##It seems that the best way to do it is to use the elevation of the flat zone, to check if the flat zone are higher than the slope zone
+            ##Need to rewrite the program to loop and extract the elevation from each zone (centrid points maybe simple)
+            ##09/28-2021
+            ##using zonal statistics to get the mean elevation for each zone
+            PolyID = arcpy.Describe(bndcleanpoly).OIDFieldName
+            polyMeanEle = ZonalStatistics(bndcleanpoly, PolyID, dem, "MEAN")
+
+            ##Get the meanElevation from the steep slope zone
+            arcpy.Select_analysis(bndcleanpoly, sel_slope_poly, "gridcode > 0")
+            #delete the small polygons
+            polyArray = arcpy.da.FeatureClassToNumPyArray(sel_slope_poly,['SHAPE@AREA'])
+            PolyNum = np.array([item[0] for item in polyArray])
+            maxArea = max(PolyNum)
+            with arcpy.da.UpdateCursor(sel_slope_poly, ['SHAPE@AREA']) as cursor:
+                for row in cursor:
+                    area = float(row[0])
+                    if area < maxArea: ##This step reomve the small spurious ploygons as well
+                        cursor.deleteRow()
+            del cursor, row
+            #arcpy.CopyFeatures_management(sel_slope_poly, "c:\\testdata\\sel_slope_poly.shp")
+
+            slopePolyDEM = ExtractByMask(dem, sel_slope_poly)
+
+            try: ##if the slopePoly is empty
+                steepMeanEle = slopePolyDEM.mean + 0.5 ##Add 0.5 meter to make sure the selection 
+            except:
+                arcpy.AddMessage("Error! cannot delineate for this point")
+                #arcpy.CopyFeatures_management(merge_poly, "c:\\testdata\\merge_poly.shp")
+                return sel_slope_poly, False
+
+            ## Find the raster of <= steepMeanEle
+            refinedRst = Con(polyMeanEle < steepMeanEle, 1)
+            arcpy.RasterToPolygon_conversion(refinedRst, refinedPoly, "NO_SIMPLIFY","VALUE")
+
+            ##How to determine the angle is enough???
+            ##point within polygon??
+            arcpy.SpatialJoin_analysis(refinedPoly, outpnt, sel_poly_over_outpnt, "JOIN_ONE_TO_ONE", "KEEP_COMMON", '#', "INTERSECT", "10 Meters", "#")
             ##get the highest elevation of the dem
-            polycountResult = arcpy.GetCount_management(sel_zero_poly_over_stream)
+            polycountResult = arcpy.GetCount_management(sel_poly_over_outpnt)
             polycount = int(polycountResult.getOutput(0))
 
+            ##Delete tempory datasets
+            try:
+                arcpy.Delete_management (polyMeanEle)
+            except:
+                pass
+            try:
+                arcpy.Delete_management (slopePolyDEM)
+            except:
+                pass
+            try:
+                arcpy.Delete_management (refinedRst)
+            except:
+                pass
             if polycount > 0:
-                zeroPolyDEM = ExtractByMask(dem, sel_zero_poly_over_stream)
-                maxEleZeroPoly = arcpy.GetRasterProperties_management(zeroPolyDEM,"MAXIMUM")
-                maxEleZeroPoly_float = float(maxEleZeroPoly.getOutput(0))
-            else:
-                maxEleZeroPoly_float = 0
+                break  ##out of loop             
 
-            arcpy.Select_analysis(bndcleanpoly, sel_slope_poly, "gridcode > 0")
-
-            #polycountResult = arcpy.GetCount_management(sel_slope_poly)
-            #polycount = int(polycountResult.getOutput(0))
-            #arcpy.AddMessage( "The polycount is: " + str(polycount))
-            #if polycount > 0:
-            slopePolyDEM = ExtractByMask(dem, sel_slope_poly)
-            maxEleslopePoly = arcpy.GetRasterProperties_management(slopePolyDEM,"MAXIMUM")
-            maxEleslopePoly_float = float(maxEleslopePoly.getOutput(0))
-            #else:
-            #    maxEleZeroPoly_float = maxEleZeroPoly_float + 1 ##make sure that the value is higher
-
-            if maxEleslopePoly_float > maxEleZeroPoly_float:
-                break
-            #else:
-            #    print "reduce more angles to make the stream within the slope polygon"
-        #else: ##if flag == 0
-        #    arcpy.CopyFeatures_management(bndcleanpoly, sel_slope_poly)
-    #try:
-    #polycountResult = arcpy.GetCount_management(sel_slope_poly)
-    #polycount = int(polycountResult.getOutput(0))
-    #arcpy.AddMessage( "The polycount is: " + str(polycount))
     merge_poly = "in_memory\\merge_poly"
-    if arcpy.Exists(sel_slope_poly):
-        arcpy.Append_management(sel_zero_poly_over_stream, sel_slope_poly, "NO_TEST")
-        arcpy.Dissolve_management(sel_slope_poly, merge_poly,"", "","SINGLE_PART", "DISSOLVE_LINES")
+    if arcpy.Exists(refinedPoly):
+        arcpy.Append_management(sel_poly_over_outpnt, refinedPoly, "NO_TEST")
+        arcpy.Dissolve_management(refinedPoly, merge_poly,"", "","SINGLE_PART", "DISSOLVE_LINES")
     else:
         arcpy.Dissolve_management(bndcleanpoly, merge_poly,"", "","SINGLE_PART", "DISSOLVE_LINES")
         
@@ -318,9 +311,14 @@ def BoundaryRefineBySlope(dem, slopeRaster, stream, max_slope, min_slope, max_an
 
     ##Try to get rid of the islands within the polygon
     polyline = "in_memory\\polyline"
-    arcpy.FeatureToLine_management(merge_poly, polyline)
-    #arcpy.CopyFeatures_management(polyline, "c:\\test\\merge_polyline.shp")
-
+    try:
+        arcpy.FeatureToLine_management(merge_poly, polyline)
+        #arcpy.CopyFeatures_management(polyline, "c:\\test\\merge_polyline.shp")
+    except:
+        arcpy.AddMessage("Error! cannot delineate for this point")
+        #arcpy.CopyFeatures_management(merge_poly, "c:\\testdata\\merge_poly.shp")
+        return merge_poly, False
+    
     ##choose only the longest line
     lineArray = arcpy.da.FeatureClassToNumPyArray(polyline,['SHAPE@LENGTH'])
     lineLength = np.array([item[0] for item in lineArray])
@@ -340,12 +338,144 @@ def BoundaryRefineBySlope(dem, slopeRaster, stream, max_slope, min_slope, max_an
     newline = remove_bigturn(polyline, max_angle)
     newpoly = "in_memory\\newpoly"
     arcpy.FeatureToPolygon_management(newline, newpoly)
-    
+
+    ##Delete the created in-memory dataset
+    try:
+        arcpy.Delete_management ("in_memory\\line_points")
+        arcpy.Delete_management (bndcleanpoly)
+        arcpy.Delete_management (sel_poly_over_outpnt)
+        arcpy.Delete_management (sel_slope_poly)
+        arcpy.Delete_management (refinedPoly)
+        arcpy.Delete_management (polyline)
+        arcpy.Delete_management (merge_poly)
+        ##Delete in-memory Rasters
+        arcpy.Delete_management (OutBndCln)
+        arcpy.Delete_management (slp_gt)
+    except:
+        pass
+    ##Return    
     return newpoly, True
 
-    #except:
-    #    return bndcleanpoly, False
+#------------------------------------------------------------------------------------------------------------
+# This function Create cross sections for a set points along the lines.
+#------------------------------------------------------------------------------------------------------------
+def cross_sections(points, pointfield, line, linefield, window, distance):
+    ##Create a point buffer first
+    Str_buffer_dis = str(window) + " Meters"
+    pointsbuf = "in_memory\\pointsbuf"
+    arcpy.Buffer_analysis(points, pointsbuf, Str_buffer_dis)
+    cliplines = "in_memory\\cliplines"
+    arcpy.Clip_analysis(line, pointsbuf, cliplines)
+    singlecliplines = "in_memory\\singlecliplines"
+    arcpy.MultipartToSinglepart_management(cliplines, singlecliplines)
+    
+    perpendicular_line = arcpy.CreateFeatureclass_management("in_memory", "perpsline","POLYLINE","","","",line)
+    arcpy.AddField_management(perpendicular_line, pointfield, "Long")
+    new_line_cursor = arcpy.da.InsertCursor(perpendicular_line, ('SHAPE@', pointfield))
+    
+    ##Loop for each point
+    pointID = arcpy.Describe(points).OIDFieldName
+
+    pointarray = arcpy.da.FeatureClassToNumPyArray(points,pointfield)
+    pointfieldArr = np.array([item[0] for item in pointarray])
+    pntcount = len(pointfieldArr)
+    #arcpy.AddMessage(pointfieldArr)
+    #pntcount_result = arcpy.GetCount_management(points)
+    #pntcount = int(pntcount_result.getOutput(0))
+    select_point = "in_memory\\select_point"
+    select_line = "in_memory\\select_line"
+    for i in range(pntcount):
+        #spatialjoin to get the line section corresponding to the point
+        query = pointID+" = "+str(i+1)
+        #query = pointID+" = "+str(i)
+        arcpy.Select_analysis(points, select_point, query) ###Just do a simply select analysis
+        arcpy.SpatialJoin_analysis(singlecliplines, select_point, select_line, "JOIN_ONE_TO_ONE", "KEEP_COMMON", '#', "INTERSECT", "30 Meters", "#")
+
+        linearray = arcpy.da.FeatureClassToNumPyArray(select_line,[linefield])
+        linefieldArr = np.array([item[0] for item in linearray])
+        if len(linefieldArr > 0):  
+            maxValue = max(linefieldArr)
+            with arcpy.da.UpdateCursor(select_line, [linefield]) as cursor:
+                for row in cursor:
+                    fieldvalue = float(row[0])
+                    if fieldvalue < maxValue: ##This step reomve the small spurious ploygons as well
+                        cursor.deleteRow()
+            del cursor, row
+
+            ##Get the point_x and point_y
+            for rowpoint in arcpy.da.SearchCursor(select_point, ["SHAPE@XY"]):
+                pointx, pointy = rowpoint[0]      
+            del rowpoint
         
+            with arcpy.da.SearchCursor(select_line, "SHAPE@") as cursor:
+                for row in cursor:
+                    firstPnt = row[0].firstPoint
+                    startx = firstPnt.X
+                    starty = firstPnt.Y
+
+                    endPnt = row[0].lastPoint
+                    endx = endPnt.X
+                    endy = endPnt.Y
+
+                    if starty==endy or startx==endx:
+                        if starty == endy:
+                            y1 = pointy + distance
+                            y2 = pointy - distance
+                            x1 = pointx
+                            x2 = pointx
+                        if startx == endx:
+                            y1 = pointy
+                            y2 = pointy 
+                            x1 = pointx + distance
+                            x2 = pointx - distance     
+                    else:
+                        m = ((starty - endy)/(startx - endx)) #get the slope of the line
+                        negativereciprocal = -1*((startx - endx)/(starty - endy))    #get the negative reciprocal
+                        if m > 0:
+                            if m >= 1:
+                                y1 = negativereciprocal*(distance)+ pointy
+                                y2 = negativereciprocal*(-distance) + pointy
+                                x1 = pointx + distance
+                                x2 = pointx - distance
+                            if m < 1:
+                                y1 = pointy + distance
+                                y2 = pointy - distance
+                                x1 = (distance/negativereciprocal) + pointx
+                                x2 = (-distance/negativereciprocal)+ pointx           
+                        if m < 0:
+                            if m >= -1:
+                                y1 = pointy + distance
+                                y2 = pointy - distance
+                                x1 = (distance/negativereciprocal) + pointx
+                                x2 = (-distance/negativereciprocal)+ pointx     
+                            if m < -1:
+                                y1 = negativereciprocal*(distance)+ pointy
+                                y2 = negativereciprocal*(-distance) + pointy
+                                x1 = pointx + distance
+                                x2 = pointx - distance
+                    array = arcpy.Array([arcpy.Point(x1,y1),arcpy.Point(x2, y2)])
+                    polyline = arcpy.Polyline(array)
+                    pntID = pointfieldArr[i]
+                    #pntID = arr[row][2]
+                    #segID = arr[row][4]
+                    new_line_cursor.insertRow([polyline, pntID])
+
+            del cursor, row  
+
+    del new_line_cursor
+
+
+    ##Delete the created in-memory dataset
+    try:
+        arcpy.Delete_management (pointsbuf)
+        arcpy.Delete_management (cliplines)
+        arcpy.Delete_management (singlecliplines)
+        arcpy.Delete_management (select_point)
+        arcpy.Delete_management (select_line)
+    except:
+        pass
+    return perpendicular_line
+
     
 ##Main program
 # Script arguments
@@ -353,9 +483,11 @@ InputDEM = arcpy.GetParameterAsText(0)
 InputFC  = arcpy.GetParameterAsText(1) ##Input turning points or cross sections around the outlet points
 StreamThresholdKM2 = arcpy.GetParameter(2)
 Max_backwall_slope =  arcpy.GetParameter(3)
-Min_backwall_slope =  arcpy.GetParameter(4)
+Flexible_backwall_slope =  arcpy.GetParameter(4)
 
 OutCirques = arcpy.GetParameterAsText(5)
+
+Min_backwall_slope = int(Max_backwall_slope) - int(Flexible_backwall_slope)
 
 FcType = arcpy.Describe(InputFC).shapeType
 if FcType == "Point" or FcType == "Multipoint":
@@ -370,18 +502,17 @@ else:
 cellsize = arcpy.GetRasterProperties_management(InputDEM,"CELLSIZEX")
 cellsize_int = int(float(cellsize.getOutput(0)))
 
-StreamThreshold = int(float(StreamThresholdKM2) * 1e6 / (cellsize_int * cellsize_int))
-#minCirqueArea = StreamThresholdKM2 * 1e6
+#StreamThreshold = int(float(StreamThresholdKM2) * 1e6 / (cellsize_int * cellsize_int))
+StreamThreshold = 10
 
 ###temporay files
-smoothtolerance = cellsize_int * 10
+smoothtolerance = cellsize_int * 5
 FCselected = "in_memory\\FCselected"  ##Set a in_memory file for each moraine feature
 Singlepoint = "in_memory\\Singlepoint"
+Streams = "in_memory\\Streams"
 Singlestream = "in_memory\\Singlestream"
 SingleWs = "in_memory\\SingleWs"
 singleBND = "in_memory\\singleBND"
-#TotalBND = "in_memory\\TotalBND"
-tmpbuf = "in_memory\\tmpbuf"
 
 ###Get the count of cirque features
 countResult = arcpy.GetCount_management(InputFC)
@@ -391,8 +522,6 @@ if count < 1:
     arcpy.AddMessage("There is no features to identify cirques")
     sys.exit()
 
-FcID = arcpy.Describe(InputFC).OIDFieldName
-
 ###Step 1: Stream network
 arcpy.AddMessage("Flow direction and accumulation analysis...")
 
@@ -400,90 +529,134 @@ arcpy.AddMessage("Flow direction and accumulation analysis...")
 outslope = Slope(InputDEM)
 fillDEM =Fill(InputDEM)  ##Fill the sink first
 fdir = FlowDirection(fillDEM,"NORMAL") ##Flow direction
+
 facc = FlowAccumulation(fdir) ##Flow accmulation
 
+outGreaterThan = Con(facc > StreamThreshold, 1,0)  ##Determine the highest flowaccumuation part
+
+# Process: Stream Link
+outStreamLink = StreamLink(outGreaterThan, fdir)
+    
+# Process: Stream to Feature
+StreamToFeature(outStreamLink, fdir, Streams, "NO_SIMPLIFY")
+#arcpy.CopyFeatures_management(Streams, "c:\\testdata\\fstreams3.shp")
+
+
+inputFCcopy = "in_memory\\inputFCcopy"
+inputFCcs = "in_memory\\inputFCcs"
+arcpy.CopyFeatures_management(InputFC, inputFCcopy)
+FcID = arcpy.Describe(inputFCcopy).OIDFieldName
+
+
+if bFCLine == 0: ##if the inputFc is point feature, need to create the cross sections for each point
+    MaxFccTable = "in_memory\\MaxFccTable"
+    TmpStream = "in_memory\\TmpStream"
+
+    #arcpy.CopyFeatures_management(Singlestream, "c:\\testdata\\fstreams2.shp")
+    StreamToFeature(outStreamLink, fdir, TmpStream, "SIMPLIFY")
+    ZonalStatisticsAsTable(outStreamLink, "VALUE", facc, MaxFccTable, "DATA", "MAXIMUM")
+    # Process: Join Field
+    arcpy.JoinField_management(TmpStream, "grid_code", MaxFccTable, "Value", "MAX")  ##Join to get the flow accumulation value
+
+    ##test the cross section function here!!!!
+    crosssections = cross_sections(inputFCcopy, FcID, TmpStream, "MAX", 50, 120)
+    #arcpy.CopyFeatures_management(crosssections, "c:\\testdata\\crosssection1.shp")
+    arcpy.CopyFeatures_management(crosssections, inputFCcs)
+    try:
+        arcpy.Delete_management (MaxFccTable)
+        arcpy.Delete_management (TmpStream)
+    except:
+        pass
+else:
+    arcpy.CopyFeatures_management(inputFCcopy, inputFCcs)
+    
 TotalBND = arcpy.CreateFeatureclass_management("in_memory", "TotalBND","POLYGON","","","",InputFC)
+countResult = arcpy.GetCount_management(inputFCcs)
+count = int(countResult.getOutput(0))
+FcID = arcpy.Describe(inputFCcs).OIDFieldName
+#FcID = arcpy.Describe(inputFCcopy).OIDFieldName
 
 for ifeature in range (count):
     arcpy.AddMessage("Generating cirque "+str(ifeature + 1)+" of "+str(count))
-    if FcID == "FID":
-        query = FcID +" = "+str(ifeature)
-    else:
-        query = FcID +" = "+str(ifeature+1)
-    arcpy.Select_analysis(InputFC, FCselected, query)
+    query = FcID +" = "+str(ifeature+1)
+    arcpy.Select_analysis(inputFCcs, FCselected, query)
+    
+    #arcpy.CopyFeatures_management(Streams, "c:\\testdata\\Streams.shp")
+    #arcpy.CopyFeatures_management(FCselected, "c:\\testdata\\FCselected.shp")
 
-    if bFCLine > 0: ##if the inputFc is polyline
-        ## use the small buffer of the line to make sure it can always get the maximum facc
-        ##make a small buffer of the cross section to make sure the cross section get the highest fcc
-        arcpy.Buffer_analysis(FCselected, tmpbuf, (str(cellsize_int/2)+ " Meter"))
-        bufID = arcpy.Describe(tmpbuf).OIDFieldName
+    arcpy.Intersect_analysis([Streams, FCselected], Singlepoint, "#", "#", "POINT")
+
+    pntcountResult = arcpy.GetCount_management(Singlepoint)
+    pntcount = int(pntcountResult.getOutput(0))
+    #arcpy.AddMessage("the number of point is:" + str(pntcount))
+    if (pntcount == 0): ##if no intersect points, use the buffer to get the intersection points for another time
+        tmpbuf = "in_memory\\tmpbuf"
+        arcpy.Buffer_analysis(FCselected, tmpbuf, "5 Meters")
+        arcpy.Intersect_analysis([Streams, tmpbuf], Singlepoint, "#", "#", "POINT")
+        pntcountResult = arcpy.GetCount_management(Singlepoint)
+        pntcount = int(pntcountResult.getOutput(0))
+        #arcpy.AddMessage("the number of point is:" + str(pntcount))
+        arcpy.Delete_management (tmpbuf)
         
-        outZonalStatistics = ZonalStatistics(tmpbuf, bufID, facc, "MAXIMUM") #Find the maximum flowaccumulation point on the moriane feature
-        outPour = Con(facc == outZonalStatistics,facc)  ##Determine the highest flowaccumuation part
+    if (pntcount > 0):
+        #Calculate Watershed
+        outPour = SnapPourPoint(Singlepoint, facc, 0)
+        outWs1 = Watershed(fdir, outPour)
+        outWs1.save("c:\\testdata\\outWs1.tif")
+        outWs = Con(outWs1 >= 0, 1)  ##Determine the highest flowaccumuation part and set others as Nodata
+        arcpy.RasterToPolygon_conversion(outWs, SingleWs, "NO_SIMPLIFY", "VALUE")
         
-        #outZonalStatistics = ZonalStatistics(FCselected, FcID, facc, "MAXIMUM") #Find the maximum flowaccumulation point on the moriane feature
-        #outPour = Con(facc == outZonalStatistics,facc)  ##Determine the highest flowaccumuation part
-        arcpy.RasterToPoint_conversion(outPour, Singlepoint, "VALUE")
-    else:
-        outPour = SnapPourPoint(FCselected, facc, cellsize_int) ## Just create a pourpoint raster with the same extent of the input DEM
-        arcpy.RasterToPoint_conversion(outPour, Singlepoint, "VALUE")          
+        arcpy.Clip_analysis(Streams, SingleWs, Singlestream)
+        
+        singleDEM = ExtractByMask(fillDEM, outWs)
+        ext_slope = ExtractByMask(outslope, outWs)
 
-    #Calculate Watershed
-    outPour = SnapPourPoint(Singlepoint, facc, cellsize_int)
-    outWs = Watershed(fdir, outPour)
-    #outWs = Watershed(fdir, Singlepoint)
-    
-    arcpy.RasterToPolygon_conversion(outWs, SingleWs, "NO_SIMPLIFY", "VALUE")
-    #arcpy.CopyFeatures_management(SingleWs, "c:\\test\\testsinglews.shp")
-    
-    # Process: Extract by Mask
-    ExtraFcc = ExtractByMask(facc,outWs)
-    # Process: Greater Than
-    outGreaterThan = Con(ExtraFcc > StreamThreshold, 1,0)  ##Determine the highest flowaccumuation part
+        singleBND, status = BoundaryRefineBySlope(singleDEM, ext_slope, Singlepoint, int(Max_backwall_slope), int(Min_backwall_slope), 120)
 
-    # Process: Stream Link
-    outStreamLink = StreamLink(outGreaterThan, fdir)
-    
-    # Process: Stream to Feature
-    StreamToFeature(outStreamLink, fdir, Singlestream, "SIMPLIFY")
+        polycountResult = arcpy.GetCount_management(singleBND)
+        polycount = int(polycountResult.getOutput(0))
 
-    #arcpy.CopyFeatures_management(Singlestream, "c:\\test\\Singlestream.shp")
-    
-    singleDEM = ExtractByMask(fillDEM, outWs)
-    ext_slope = ExtractByMask(outslope, outWs)
-
-    #singleBND = SkylineBoundaryExtract(singleDEM, Singlestream, SingleWs, 10, singleBND)
-    singleBND, status = BoundaryRefineBySlope(singleDEM, ext_slope, Singlestream, int(Max_backwall_slope), int(Min_backwall_slope), 120)
-
-    polycountResult = arcpy.GetCount_management(singleBND)
-    polycount = int(polycountResult.getOutput(0))
-
-    #arcpy.AddMessage("polgon count: " + str(polycount))
-    #arcpy.AddMessage("status: " + str(status))
-    
-    if (polycount > 0 and status): ##meet the cirque standards
-        #if ifeature < 1: ##The first loop
-        #    arcpy.CopyFeatures_management(singleBND, TotalBND)
-        #else:
-        arcpy.Append_management(singleBND, TotalBND, "NO_TEST")        
+        if (polycount > 0 and status): ##meet the cirque standards
+            arcpy.Append_management(singleBND, TotalBND, "NO_TEST")        
 
 ##Smooth polygons
 #arcpy.CopyFeatures_(TotalBND, OutCirques, "PAEK", smoothtolerance)
-arcpy.CopyFeatures_management(TotalBND, OutCirques)
-
-arcpy.cartography.SmoothPolygon(TotalBND, OutCirques, "PAEK", smoothtolerance)
-
-arcpy.AddField_management(OutCirques, "CirIndex", "DOUBLE")
-with arcpy.da.UpdateCursor(OutCirques, ['SHAPE@LENGTH', 'SHAPE@AREA', 'CirIndex']) as cursor:
-    for row in cursor:
-        area = float(row[1])
-        #if area > minCirqueArea: ##Do not use the min area for this tool
-        length = float(row[0])
-        row[2] = 4.0 * 3.14 * area / (length * length)
-        cursor.updateRow(row)
-        #else:
-        #    cursor.deleteRow()
-del cursor, row
-
+#arcpy.CopyFeatures_management(TotalBND, OutCirques)
+polycountResult = arcpy.GetCount_management(TotalBND)
+polycount = int(polycountResult.getOutput(0))
+if polycount > 0:
+    arcpy.cartography.SmoothPolygon(TotalBND, OutCirques, "PAEK", smoothtolerance)
+    arcpy.AddField_management(OutCirques, "CirIndex", "DOUBLE")
+    with arcpy.da.UpdateCursor(OutCirques, ['SHAPE@LENGTH', 'SHAPE@AREA', 'CirIndex']) as cursor:
+        for row in cursor:
+            area = float(row[1])
+            #if area > minCirqueArea: ##Do not use the min area for this tool
+            length = float(row[0])
+            row[2] = 4.0 * 3.14 * area / (length * length)
+            cursor.updateRow(row)
+            #else:
+            #    cursor.deleteRow()
+    del cursor, row
+else:
+    arcpy.AddMessage("Fail to delineate the polygons!")
 ##Delete intermidiate data
 arcpy.Delete_management("in_memory") ### Empty the in_memory
+'''
+##It seems that arcpy.Delete_management ("in_memory") already remove all in_memory datasets
+##Delete the created in-memory dataset
+arcpy.Delete_management (FCselected)
+arcpy.Delete_management (Singlepoint)
+arcpy.Delete_management (Streams)
+arcpy.Delete_management (Singlestream)
+arcpy.Delete_management (SingleWs)
+arcpy.Delete_management (singleBND)
+arcpy.Delete_management (inputFCcopy)
+arcpy.Delete_management (inputFCcs)
+#Delete Raster datasets
+arcpy.Delete_management (outslope)
+arcpy.Delete_management (fillDEM)
+arcpy.Delete_management (fdir)
+arcpy.Delete_management (facc)
+arcpy.Delete_management (outGreaterThan)
+arcpy.Delete_management (outStreamLink)
+'''

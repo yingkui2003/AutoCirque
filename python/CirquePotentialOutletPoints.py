@@ -22,21 +22,34 @@ arcpy.env.XYTolerance= "0.01 Meters"
 
 arcpy.Delete_management("in_memory") ### Empty the in_memory
 
-try:
-    if arcpy.CheckExtension("Spatial")=="Available":
-        arcpy.CheckOutExtension("Spatial")
-    else:
-        print "not extension available"
-except:
-    print "unable to check out extension"
+ArcGISPro = 0
+arcpy.AddMessage("The current python version is: " + str(sys.version_info[0]))
+if sys.version_info[0] == 2:  ##For ArcGIS 10, need to check the 3D and Spatial Extensions
+    try:
+        if arcpy.CheckExtension("Spatial")=="Available":
+            arcpy.CheckOutExtension("Spatial")
+        else:
+            raise Exception ("not extension available")
+            #print "not extension available"
+    except:
+        raise Exception ("unable to check out extension")
+        #print "unable to check out extension"
 
-try:
-    if arcpy.CheckExtension("3D")=="Available":
-        arcpy.CheckOutExtension("3D")
-    else:
-        print "not extension available"
-except:
-    print "unable to check out extension"
+    try:
+        if arcpy.CheckExtension("3D")=="Available":
+            arcpy.CheckOutExtension("3D")
+        else:
+            raise Exception ("not extension available")
+            #print "not extension available"
+    except:
+        raise Exception ("unable to check out extension")
+        #print "unable to check out extension"
+elif sys.version_info[0] == 3:  ##For ArcGIS Pro
+    ArcGISPro = 1
+    #pass ##No need to Check
+else:
+    raise Exception("Must be using Python 2.x or 3.x")
+    exit() 
 
 #---------------------------------------------------------------------------------------------------------------
 ## The function to clean extrlines based on from and to nodes
@@ -85,13 +98,20 @@ def SLRatio(x, y):
     dnxdiff = x_diff[1:]
     upydiff = y_diff[0:-1]
     dnydiff = y_diff[1:]
-    upsl = upydiff/upxdiff * x[1:-1]
-    dnsl = dnydiff/dnxdiff * x[1:-1]
+    upsl = upydiff/upxdiff #* x[1:-1]
+    dnsl = dnydiff/dnxdiff #* x[1:-1]
     xbothside = x[2:] - x[0:-2]
     ybothside = y[2:] - y[0:-2]
-    slbothside = ybothside / xbothside * x[1:-1]
-    slbothside[slbothside == 0] = -0.001
+    slbothside = ybothside / xbothside #* x[1:-1]
+    slbothside[slbothside == 0] = -0.001 ##try to get rid of the micro changes in flat areas
     Ratio = (dnsl - upsl) / slbothside
+    ##try to get rid of the micro changes in flat areas
+    Ratio [dnsl > -0.087] = 0.0 ##if the downslope is less than 5 degree, set the ratio to zero
+    Ratio [slbothside > -0.087] = 0.0 ##if the both is less than 5 degree, set the ratio to zero
+
+    ##using the NDVI format to derive the ratio
+    #Ratio = (dnsl - upsl)/ (dnsl + upsl)
+    
     return Ratio
 
 #---------------------------------------------------------------------------------------------------------------
@@ -117,10 +137,15 @@ def turning_points(streamLength, streamZ, turning_points = 10, cluster_radius = 
     turn_point_idx = np.argsort(SL)[::-1]
     t_points = []
     t_ratios = []
+    #determine the maximum number of turning points based on the normal distrbution of one standard dieviation (100% - 68%)/2 = 16%
+    SL_positive = [i for i in SL if i >= 0]
+    #print len(SL_positive)
+    turning_points = min(turning_points, int(len(SL_positive)*0.16+0.5))
+    arcpy.AddMessage("turing_points is adjusted to: " + str(turning_points)) 
 
     while len(t_points) < turning_points and len(turn_point_idx) > 0:
         Ratio = SL[turn_point_idx[0]]
-        if Ratio < 1.0:
+        if Ratio < 0.0:
             break
         else:
             t_points += [turn_point_idx[0]]
@@ -170,17 +195,29 @@ def Knickpoints_rdp(points, epsilon, turn_points, angles):
     start = np.tile(np.expand_dims(points[0], axis=0), (points.shape[0], 1))
     end = np.tile(np.expand_dims(points[-1], axis=0), (points.shape[0], 1))
     linedist = Dist(start[0][0],start[0][1],end[0][0],end[0][1])
+    #print linedist
     dist_point_to_line = np.cross(end - start, points - start, axis=-1) / np.linalg.norm(end - start, axis=-1)
-    max_idx = np.argmax(np.abs(dist_point_to_line))
-    max_value = dist_point_to_line[max_idx]/linedist
+    #print dist_point_to_line
+    #max_idx = np.argmax(np.abs(dist_point_to_line))
+    #max_value = dist_point_to_line[max_idx]/linedist
+    max_idx = np.argmax(dist_point_to_line)
+    max_value = dist_point_to_line[max_idx]##/linedist
+    #print max_value
+    #print points[max_idx]
     
     if abs(max_value) > epsilon:  ##the distance is at least 1 m from the line
         if max_value > 0:
              ##Calculate the angle of this maximum point to the both side
-             centerpnt =  points[max_idx]
-             angle = math.atan2(end[0][1] - centerpnt[1], end[0][0] - centerpnt[0]) - math.atan2(start[0][1] - centerpnt[1], start[0][0] - centerpnt[0]);
+             #centerpnt =  points[max_idx]
+             #angle = math.atan2(end[0][1] - centerpnt[1], end[0][0] - centerpnt[0]) - math.atan2(start[0][1] - centerpnt[1], start[0][0] - centerpnt[0]);
              turn_points.append(points[max_idx])
-             angles.append(180 - (360 + angle/3.14159*180))
+             #ba = start[0] - centerpnt
+             #bc = end[0] - centerpnt
+             #cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+             #angle = np.arccos(cosine_angle)*180/np.pi
+             #angles.append(180 - angle)
+             angles.append(max_value)
+             #angles.append(180 - (360 + angle/3.14159*180))
 
         partial_results_left = Knickpoints_rdp(points[:max_idx+1], epsilon, turn_points,angles)
         partial_results_right = Knickpoints_rdp(points[max_idx:], epsilon, turn_points,angles)
@@ -193,11 +230,15 @@ def turning_points_RDP(streamLength, streamZ, turning_points = 10, cluster_radiu
     turn_angles = []
 
     Knickpoints_rdp(stream_points, epsilon, turn_points, turn_angles)
+    #print "turn_points"
+    #print turn_points
+    #print turn_angles
 
     if len(turn_points) < 1:
         return [], []
     
-    new_x = np.array(turn_points)[:,0]
+    new_x = np.exp(np.array(turn_points)[:,0]) ##The value for the calculation is ln value; Need to convert the length to the reallength value, 
+    #print new_x
     turn_point_idx = np.argsort(turn_angles)[::-1]
 
     t_pointsID = []
@@ -205,13 +246,17 @@ def turning_points_RDP(streamLength, streamZ, turning_points = 10, cluster_radiu
 
     while len(t_pointsID) < turning_points and len(turn_point_idx) > 0:
         angle = turn_angles[turn_point_idx[0]]
-        if angle < 3:
+        #print angle
+        if angle < 0.01: ##this is the angle based on the log value
             break
         else:
             t_pointsID += [turn_point_idx[0]]
             t_angles.append(turn_angles[turn_point_idx[0]])
             cumLength = new_x[turn_point_idx[0]]
-            trueidx = np.where(np.abs(new_x-cumLength) < cluster_radius)
+            #print cumLength
+            #print np.abs(new_x - cumLength)
+            
+            trueidx = np.where(np.abs(new_x - cumLength) < cluster_radius)
             if len(trueidx[0])> 0:
                 for i in range(len(trueidx[0])):
                     index = trueidx[0][i]
@@ -223,8 +268,11 @@ def turning_points_RDP(streamLength, streamZ, turning_points = 10, cluster_radiu
     for i in range(len(t_pointsID)):
         points = turn_points[t_pointsID[i]]
         t_point_idx = np.where(PointZ == points[1])
-        t_points.append(t_point_idx[0])
-
+        #print t_point_idx[0]
+        #print t_point_idx[0][-1] ##take the last point if it multiple points have the same elevation
+        t_points.append(t_point_idx[0][0])
+    #print t_points
+    #print t_angles
     return t_points, t_angles
 
 #---------------------------------------------------------------------------------------------------------------
@@ -272,7 +320,7 @@ def turning_points_ConvexAngle(streamLength, streamZ, turning_points = 10, clust
 
     while len(t_points) < turning_points and len(turn_point_idx) > 0:
         SLRatio = SL[turn_point_idx[0]]
-        print SLRatio
+        #print SLRatio
         if SLRatio < 3:
             break
         else:
@@ -287,6 +335,7 @@ def turning_points_ConvexAngle(streamLength, streamZ, turning_points = 10, clust
 
     return t_points, t_ratios
 
+
 #---------------------------------------------------------------------------------------------------------------
 # This function calculates the distance between two points
 #--------------------------------------------------------------------------------------------------------------- 
@@ -296,6 +345,7 @@ def Dist(x1,y1,x2,y2):
 #---------------------------------------------------------------------------------------------------------------
 # This function derives the boundary based on the skyline analysis
 #--------------------------------------------------------------------------------------------------------------- 
+'''
 def BoundaryExtractbySkyline(inDEM, instreams, wspoly, t_points, Elevationshift, outpoly):
     arcpy.env.extent = inDEM
     ##Simplify stream
@@ -354,7 +404,128 @@ def BoundaryExtractbySkyline(inDEM, instreams, wspoly, t_points, Elevationshift,
         arcpy.CopyFeatures_management(wspoly, outpoly)
 
     return outpoly
+'''        
+
+#------------------------------------------------------------------------------------------------------------
+# This function Create cross sections for a set points along the lines.
+#------------------------------------------------------------------------------------------------------------
+def cross_sections(points, pointfield, line, linefield, window, distance):
+    ##Create a point buffer first
+    Str_buffer_dis = str(window) + " Meters"
+    pointsbuf = "in_memory\\pointsbuf"
+    arcpy.Buffer_analysis(points, pointsbuf, Str_buffer_dis)
+    cliplines = "in_memory\\cliplines"
+    arcpy.Clip_analysis(line, pointsbuf, cliplines)
+    singlecliplines = "in_memory\\singlecliplines"
+    arcpy.MultipartToSinglepart_management(cliplines, singlecliplines)
+    
+    perpendicular_line = arcpy.CreateFeatureclass_management("in_memory", "perpsline","POLYLINE","","","",line)
+    arcpy.AddField_management(perpendicular_line, pointfield, "Long")
+    new_line_cursor = arcpy.da.InsertCursor(perpendicular_line, ('SHAPE@', pointfield))
+    
+    ##Loop for each point
+    pointID = arcpy.Describe(points).OIDFieldName
+
+    pointarray = arcpy.da.FeatureClassToNumPyArray(points,pointfield)
+    pointfieldArr = np.array([item[0] for item in pointarray])
+    pntcount = len(pointfieldArr)
+    #arcpy.AddMessage(pointfieldArr)
+    #pntcount_result = arcpy.GetCount_management(points)
+    #pntcount = int(pntcount_result.getOutput(0))
+    select_point = "in_memory\\select_point"
+    select_line = "in_memory\\select_line"
+    for i in range(pntcount):
+        #spatialjoin to get the line section corresponding to the point
+        query = pointID+" = "+str(i+1)
+        #query = pointID+" = "+str(i)
+        arcpy.Select_analysis(points, select_point, query) ###Just do a simply select analysis
+        arcpy.SpatialJoin_analysis(singlecliplines, select_point, select_line, "JOIN_ONE_TO_ONE", "KEEP_COMMON", '#', "INTERSECT", "30 Meters", "#")
+
+        linearray = arcpy.da.FeatureClassToNumPyArray(select_line,[linefield])
+        linefieldArr = np.array([item[0] for item in linearray])
+        if len(linefieldArr > 0):  
+            maxValue = max(linefieldArr)
+            with arcpy.da.UpdateCursor(select_line, [linefield]) as cursor:
+                for row in cursor:
+                    fieldvalue = float(row[0])
+                    if fieldvalue < maxValue: ##This step reomve the small spurious ploygons as well
+                        cursor.deleteRow()
+            del cursor, row
+
+            ##Get the point_x and point_y
+            for rowpoint in arcpy.da.SearchCursor(select_point, ["SHAPE@XY"]):
+                pointx, pointy = rowpoint[0]      
+            del rowpoint
         
+            with arcpy.da.SearchCursor(select_line, "SHAPE@") as cursor:
+                for row in cursor:
+                    firstPnt = row[0].firstPoint
+                    startx = firstPnt.X
+                    starty = firstPnt.Y
+
+                    endPnt = row[0].lastPoint
+                    endx = endPnt.X
+                    endy = endPnt.Y
+
+                    if starty==endy or startx==endx:
+                        if starty == endy:
+                            y1 = pointy + distance
+                            y2 = pointy - distance
+                            x1 = pointx
+                            x2 = pointx
+                        if startx == endx:
+                            y1 = pointy
+                            y2 = pointy 
+                            x1 = pointx + distance
+                            x2 = pointx - distance     
+                    else:
+                        m = ((starty - endy)/(startx - endx)) #get the slope of the line
+                        negativereciprocal = -1*((startx - endx)/(starty - endy))    #get the negative reciprocal
+                        if m > 0:
+                            if m >= 1:
+                                y1 = negativereciprocal*(distance)+ pointy
+                                y2 = negativereciprocal*(-distance) + pointy
+                                x1 = pointx + distance
+                                x2 = pointx - distance
+                            if m < 1:
+                                y1 = pointy + distance
+                                y2 = pointy - distance
+                                x1 = (distance/negativereciprocal) + pointx
+                                x2 = (-distance/negativereciprocal)+ pointx           
+                        if m < 0:
+                            if m >= -1:
+                                y1 = pointy + distance
+                                y2 = pointy - distance
+                                x1 = (distance/negativereciprocal) + pointx
+                                x2 = (-distance/negativereciprocal)+ pointx     
+                            if m < -1:
+                                y1 = negativereciprocal*(distance)+ pointy
+                                y2 = negativereciprocal*(-distance) + pointy
+                                x1 = pointx + distance
+                                x2 = pointx - distance
+                    array = arcpy.Array([arcpy.Point(x1,y1),arcpy.Point(x2, y2)])
+                    polyline = arcpy.Polyline(array)
+                    pntID = pointfieldArr[i]
+                    #pntID = arr[row][2]
+                    #segID = arr[row][4]
+                    new_line_cursor.insertRow([polyline, pntID])
+
+            del cursor, row  
+
+    del new_line_cursor
+
+
+    ##Delete the created in-memory dataset
+    try:
+        arcpy.Delete_management (pointsbuf)
+        arcpy.Delete_management (cliplines)
+        arcpy.Delete_management (singlecliplines)
+        arcpy.Delete_management (select_point)
+        arcpy.Delete_management (select_line)
+    except:
+        pass
+    return perpendicular_line
+
     
 ##Main program
 # Script arguments
@@ -364,7 +535,18 @@ StreamThresholdKM2 = arcpy.GetParameter(2)
 TributaryThresholdKM2 = arcpy.GetParameter(3)
 Out3DProfiles = arcpy.GetParameterAsText(4)
 OutKnickpoints = arcpy.GetParameterAsText(5) ##the turning points for cirques
+OutCrossSections = arcpy.GetParameterAsText(6) ##the cross sections of the turning points for cirques
 
+##To run the tool in python by assign parameters in the file, not from the ArcGIS interface
+##This can speed up the runing time
+#InputDEM = "c:\\testdata\\tsDEM1.tif"
+#EleThreshold = 3400
+#StreamThresholdKM2 = 0.03
+#TributaryThresholdKM2 = 0.5
+#Out3DProfiles = "c:\\testdata\\ts3dprofile141.shp"
+#OutKnickpoints = "c:\\testdata\\tsknickpoints141.shp" ##the turning points for cirques
+
+arcpy.env.extent = InputDEM
 cellsize = arcpy.GetRasterProperties_management(InputDEM,"CELLSIZEX")
 cellsize_int = int(float(cellsize.getOutput(0)))
 
@@ -409,8 +591,9 @@ ZonalStatisticsAsTable(outStreamLink, "VALUE", outStreamOrder, StreamOrderTable,
 arcpy.JoinField_management(TmpStream, "grid_code", MaxFccTable, "Value", "MAX")  ##Join to get the flow accumulation value
 arcpy.JoinField_management(TmpStream, "grid_code", StreamOrderTable, "Value", "MAX") ##Join to get the stream order value  THe field name is MAX_1
 
+
 ##Step 2: clean streams                
-arcpy.AddMessage("Step 2: Clean streams...")
+arcpy.AddMessage("Step 2: Filtering streams...")
 ###This TmpStream already have a to_node in the attibute table, so that it can be used to make the decision
 lineArray = arcpy.da.FeatureClassToNumPyArray(TmpStream,['OID@','to_node','MAX'])
 tonode = np.array([item[1] for item in lineArray])
@@ -450,13 +633,15 @@ cleanextralineswithtopology(TmpStream,tmpoutStream, 'MAX', TributaryThreshold)  
 arcpy.Dissolve_management(tmpoutStream, CleanStream, '#', 'MAX MAX;MAX_1 MIN', 'SINGLE_PART', 'UNSPLIT_LINES') 
 
 ##Copy the data out for test
-#arcpy.CopyFeatures_management(CleanStream, "c:\\test\\cleanstream.shp")
+#arcpy.CopyFeatures_management((CleanStream, "c:\\testdata\\cleanstream.shp")
+arcpy.CopyFeatures_management(CleanStream, "c:\\testdata\\cleanstream.shp")
 
 ###Step 3: Find the knickpoints for the first order streams only
-arcpy.AddMessage("Step 3: Find the knickpoints for the first order streams...")
+arcpy.AddMessage("Step 3: Find the potential threshold points for the first order streams...")
 
 FirstOrderStream = "in_memory\\FirstOrderStream"
 arcpy.Select_analysis(CleanStream, FirstOrderStream, '"MIN_MAX_1" < 2')
+
 
 FirstOrderStream3D = "in_memory\\FirstOrderStream3D"
 ##use filled DEM and 3*cellsize as spacing; save the 3d feature as one output: out3DProfiles
@@ -499,26 +684,37 @@ with arcpy.da.SearchCursor(FirstOrderStream3D, ["OID@","SHAPE@", "SHAPE@Length"]
                     pntCount += 1
 
         #arcpy.AddMessage("Start determine the turning points")
-        #t_points, t_ratios = turning_points_RDP(LengthfromStart, PointZ, 10, 200)
+        ##Should convert the lengthfromstart to log values
+        logstreamlength = np.log(LengthfromStart[1:])
+        t_points, t_ratios = turning_points_RDP(logstreamlength, PointZ[1:], 3, cellsize_int*5) ##only top 3 turing points should be enough
         #t_points, t_ratios = turning_points_RDE(LengthfromStart, PointZ, 10, 200)
-        #t_points, t_ratios = turning_points(LengthfromStart, PointZ) ##, turning_points = 10, cluster_radius = 200)
-        t_points, t_ratios = turning_points_ConvexAngle(LengthfromStart, PointZ, 10, 200)
-
+        #t_points, t_ratios = turning_points(LengthfromStart, PointZ, turning_points = 5, cluster_radius = cellsize_int*5)
+        #t_points, t_ratios = turning_points_ConvexAngle(LengthfromStart, PointZ, 10, 200)
+        
+        #print t_points
+        #print t_ratios
+        
         ##Make the turn point layer
         if len(t_points) > 0:
             CursorPnts = arcpy.da.InsertCursor(Knickpoints, ['SHAPE@', 'LineID', 'Ratio', 'Ele'])
             LineIDlist.append(lineId)
             for i in range(len(t_points)):
-                idx = t_points[i] + 1 ##the idx should plus 1 because the t_points are only indexed except for the start and end points
+                #idx = t_points[i] + 1 ##the idx should plus 1 because the t_points are only indexed except for the start and end points
+                #arcpy.AddMessage("idx is: " + str(idx))
+                idx = t_points[i] ##+ 1 ##do not add 1 for the RDP method
                 Ratio = t_ratios[i]
                 Pnt = arcpy.Point(PointX[idx], PointY[idx])
                 CursorPnts.insertRow((Pnt, lineId, Ratio, PointZ[idx])) ##Add Z as a point attribute here
-
+            del CursorPnts
 del cursor, row             
 
 ##Copy to the outputs
 arcpy.CopyFeatures_management(FirstOrderStream3D, Out3DProfiles)
 arcpy.CopyFeatures_management(Knickpoints, OutKnickpoints)
+##Create the cross sections for the turning points based on the first order stream
+#arcpy.CopyFeatures_management(Knickpoints, "c:\\testdata\\Knickpoints.shp")
+CrossSections = cross_sections(Knickpoints, "LineID", FirstOrderStream, "MAX_MAX", 50, 150)
+arcpy.CopyFeatures_management(CrossSections, OutCrossSections)
 
 ##Delete intermidiate data
 arcpy.Delete_management("in_memory") ### Empty the in_memory
