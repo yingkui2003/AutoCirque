@@ -15,5 +15,32 @@ A Cirque Potential Thresholds tool is also developed to identify potential cirqu
 
 ![image](https://user-images.githubusercontent.com/24683137/140190574-e4425458-aae2-4366-9113-cc6372363b62.png)
 
-# How to download and use it in ArcGIS or ArcGIS Pro
+# How to download and use this toolbox in ArcGIS or ArcGIS Pro
 The github site include a AutoCirque.tbx file and a python folder, including three python files associated with the three tools. The codes have been imported to ArcGIS Toolbox so that it is not necessary to download the python folder in order to use this toolbox in ArcGIS and ArcGIS Pro. The user can simply download the tbx file to their computer and run these three tools in ArcGIS or ArcGIS Pro.
+
+To only use this toolbox, the user can simply right click the AutoCirque.tbx under the code in the Github site and select Save link as...
+
+![image](https://user-images.githubusercontent.com/24683137/140191942-d01e84bc-588c-461a-8348-075b16c1bce3.png)
+
+In this way, the user can save this tbx file into the local computer and then use the tools in this toolbox in ArcGIS or ArcGIS Pro.
+
+If the use wants to have both the tbx file and the python codes, the user can click "Code" (green color) on the right side of the github page and choose Download Zip.
+
+![image](https://user-images.githubusercontent.com/24683137/140193749-35671a0e-2664-4bca-b487-a1e2f071fc36.png)
+
+In this way, a zip file of the while github folder will be downloaded to the local computer. Unzip this file will create a AutoCirque-main folder with both the tbx file and the python folder and three code files. The user can check the codes and comtinue imporving this toolbox.
+
+# Contact info
+Yingkui Li
+
+Department of Geography
+
+University of Tennessee
+
+Knoxville, TN 37996
+
+Email: yli32@utk.edu
+
+Website: https://geography.utk.edu/about-us/faculty/dr-yingkui-li/
+
+Google Scholar: https://scholar.google.com/citations?user=JoNuyCMAAAAJ&hl=en&oi=ao
