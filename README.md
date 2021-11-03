@@ -1,4 +1,4 @@
-# AutoCirque
+# Introduction
 The AutoCirque toolbox includes three GIS tools: 1) Cirque Auto-Delineation; 2) Cirque Delineation by Threshold Features; and 3) Cirque Potential Thresholds. All these tools are written in python and imported into ArcGIS as python script tools. These tools have been tested successfully for different ArcGIS versions after 10.5 and ArcGIS Pro 2.8. All python scripts have been imported to their corresponding tools; therefore, the user can directly download the *.tbx file and run it in ArcGIS or ArcGIS pro. The python codes are also included in the github site. The user can check the codes and comtinue imporving this toolbox. 
 
 Cirque Auto-Delineation is a fully automated tool to delineate cirque outlines. The input parameters include DEM, a minimum elevation for cirques, the minimum source area to start a stream, the minimum total contributing area for a first order stream before joining another stream, the minimum circularity index, the minimum percentages of steep (>31°) and gentle (<20°) slope areas, and the minimum headwall slope, as well as its allowable flexibility, for the cirques. The DEM is recommended to have a UTM projection to ensure the correct calculations of DEM-related metrics without the specification of a Z-factor. The output parameters include the 3D profiles for each first order stream related to the potential cirques, the potential threshold points and cross sections along the profiles, and the delineated potential cirque outlines. 
@@ -15,4 +15,5 @@ A Cirque Potential Thresholds tool is also developed to identify potential cirqu
 
 ![image](https://user-images.githubusercontent.com/24683137/140190574-e4425458-aae2-4366-9113-cc6372363b62.png)
 
-
+# How to download and use it in ArcGIS or ArcGIS Pro
+The github site include a AutoCirque.tbx file and a python folder, including three python files associated with the three tools. The codes have been imported to ArcGIS Toolbox so that it is not necessary to download the python folder in order to use this toolbox in ArcGIS and ArcGIS Pro. The user can simply download the tbx file to their computer and run these three tools in ArcGIS or ArcGIS Pro.
