@@ -7,7 +7,7 @@ Cirque Auto-Delineation is a fully automated tool to delineate cirque outlines. 
 
 Cirque Delineation By Threshold Features is the semi-automated tool to delineate the cirques based on DEM and user specified cirque threshold features (points or cross sections). The input parameters of this tool include DEM, the threshold points or cross sections, the minimum source area to start a stream, and the minimum headwall slope, as well as its allowable flexibility, for the cirques. The output of this tool is the delineated cirque outlines.
 
-![image](https://user-images.githubusercontent.com/24683137/140190520-055be751-402a-4b00-9cf9-950a9e5b2347.png)
+![image](https://user-images.githubusercontent.com/24683137/140795153-174b2e8f-c374-4877-88a0-4e08a5b3034e.png)
 
 The cirque threshold points can be prepared by digitizing the points in ArcGIS or Google Earth (then transfer the KML file to ArcGIS). In terms of the cross sections, the user can digitize the linear features in ArcGIS or Google Earth to define the low margins of the cirques. The user can also use the interpolate 3D lines in the 3D Analyst Toolbar in ArcGIS to draw the potential cross sections and then convert the drawn graphic objects to feature classes using the Convert Graphics To Features tool in ArcGIS. 
 
