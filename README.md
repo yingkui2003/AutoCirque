@@ -3,7 +3,7 @@ The AutoCirque toolbox includes three GIS tools: 1) Cirque Auto-Delineation; 2) 
 
 Cirque Auto-Delineation is a fully automated tool to delineate cirque outlines. The input parameters include DEM, a minimum elevation for cirques, the minimum source area to start a stream, the minimum total contributing area of a stream before joining another stream, the minimum circularity index, the minimum percentages of steep (>31°) and gentle (<20°) slope areas, and the minimum headwall slope, as well as its allowable flexibility, for the cirques. The DEM is recommended to have a UTM projection to ensure the correct calculations of DEM-related metrics without the specification of a Z-factor. The output parameters include the 3D profiles for each first order stream related to the potential cirques, the potential threshold points and cross sections along the profiles, and the delineated potential cirque outlines. 
 
-![image](https://user-images.githubusercontent.com/24683137/140190395-8fbcf081-7b64-434d-a54d-1246283805ba.png)
+![image](https://user-images.githubusercontent.com/24683137/140794960-6bcc276d-616e-414b-841c-d5d354537c7d.png)
 
 Cirque Delineation By Threshold Features is the semi-automated tool to delineate the cirques based on DEM and user specified cirque threshold features (points or cross sections). The input parameters of this tool include DEM, the threshold points or cross sections, the minimum source area to start a stream, and the minimum headwall slope, as well as its allowable flexibility, for the cirques. The output of this tool is the delineated cirque outlines.
 
@@ -13,7 +13,7 @@ The cirque threshold points can be prepared by digitizing the points in ArcGIS o
 
 A Cirque Potential Thresholds tool is also developed to identify potential cirque threshold points and cross sections along the stream profile. This tool generates a set of potential threshold points and cross sections along the first order stream, so that the user can select the appropriate threshold features to delineate cirques using the Cirque Delineation by Threshold Features tool. The input parameters of this tool include DEM, a minimum elevation for cirques, the minimum source area to start a stream, and the minimum total contributing area of a stream before joining another stream. The output parameters include the 3D profiles, the potential threshold points, and the potential threshold cross sections along the profiles.
 
-![image](https://user-images.githubusercontent.com/24683137/140190574-e4425458-aae2-4366-9113-cc6372363b62.png)
+![image](https://user-images.githubusercontent.com/24683137/140795019-bc30437d-7b92-4070-beaa-dc1b8103d471.png)
 
 # How to download and use this toolbox in ArcGIS or ArcGIS Pro
 The github site include a AutoCirque.tbx file and a python folder, including three python files associated with the three tools. The codes have been imported to ArcGIS Toolbox so that it is not necessary to download the python folder in order to use this toolbox in ArcGIS and ArcGIS Pro. The user can simply download the tbx file to their computer and run these three tools in ArcGIS or ArcGIS Pro.
