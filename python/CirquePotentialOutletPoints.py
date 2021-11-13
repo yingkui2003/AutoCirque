@@ -634,7 +634,7 @@ arcpy.Dissolve_management(tmpoutStream, CleanStream, '#', 'MAX MAX;MAX_1 MIN', '
 
 ##Copy the data out for test
 #arcpy.CopyFeatures_management((CleanStream, "c:\\testdata\\cleanstream.shp")
-arcpy.CopyFeatures_management(CleanStream, "c:\\testdata\\cleanstream.shp")
+#arcpy.CopyFeatures_management(CleanStream, "c:\\testdata\\cleanstream.shp")
 
 ###Step 3: Find the knickpoints for the first order streams only
 arcpy.AddMessage("Step 3: Find the potential threshold points for the first order streams...")

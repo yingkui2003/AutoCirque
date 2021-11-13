@@ -602,7 +602,7 @@ for ifeature in range (count):
         #Calculate Watershed
         outPour = SnapPourPoint(Singlepoint, facc, 0)
         outWs1 = Watershed(fdir, outPour)
-        outWs1.save("c:\\testdata\\outWs1.tif")
+        #outWs1.save("c:\\testdata\\outWs1.tif")
         outWs = Con(outWs1 >= 0, 1)  ##Determine the highest flowaccumuation part and set others as Nodata
         arcpy.RasterToPolygon_conversion(outWs, SingleWs, "NO_SIMPLIFY", "VALUE")
         

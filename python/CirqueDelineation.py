@@ -1017,9 +1017,13 @@ def plan_clos(cirqueDEM):
 
         # slope of the end_start and mid_end lines
         s1=(y_end-y_start)/(x_end-x_start)
+        if s1 == 0:
+            s1 = 0.00001
         ##print s1
         s2=(y_mid-y_end)/(x_mid-x_end)
         ##print s2
+        if s2 == 0:
+            s2 = 0.00001
 
         #inverse slope
         is1=-1*(1/s1)
