@@ -16,7 +16,7 @@ A Cirque Potential Thresholds tool is also developed to identify potential cirqu
 ![image](https://user-images.githubusercontent.com/24683137/140795019-bc30437d-7b92-4070-beaa-dc1b8103d471.png)
 
 # How to download and use this toolbox in ArcGIS or ArcGIS Pro
-The github site include a AutoCirque.tbx file and a python folder, including three python files associated with the three tools. The user can click "Code" (green color) on the right side of the github page and choose Download Zip.
+The github site includes a AutoCirque.tbx file and a python folder, including three python files associated with the three tools. The user can click "Code" (green color) on the right side of the github page and choose Download Zip.
 
 ![image](https://user-images.githubusercontent.com/24683137/140193749-35671a0e-2664-4bca-b487-a1e2f071fc36.png)
 
