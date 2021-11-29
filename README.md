@@ -27,7 +27,7 @@ The 'Cirque Auto-Delineation' tool may have some errors (unable to allocate memo
 Please report any errors or questions to Yingkui Li (yli32@utk.edu).
 
 # Cite this work
-Y. Li and Z. Zhao, AutoCirque: An automated method to delineate glacial cirque outlines from digital elevation models, Geomorphology (2021), https://doi.org/10.1016/j.geomorph.2021.108059.
+Li Y. and Zhao, Z., 2021. AutoCirque: An automated method to delineate glacial cirque outlines from digital elevation models. Geomorphology, https://doi.org/10.1016/j.geomorph.2021.108059.
 
 # Contact info
 Yingkui Li
