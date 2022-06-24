@@ -32,7 +32,7 @@ Li Y. and Zhao, Z., 2021. AutoCirque: An automated method to delineate glacial c
 # Contact info
 Yingkui Li
 
-Department of Geography
+Department of Geography & Sustainability
 
 University of Tennessee
 
