@@ -29,6 +29,10 @@ Please report any errors or questions to Yingkui Li (yli32@utk.edu).
 # Cite this work
 Li Y. and Zhao, Z., 2021. AutoCirque: An automated method to delineate glacial cirque outlines from digital elevation models. Geomorphology, https://doi.org/10.1016/j.geomorph.2021.108059.
 
+# Most recent updates
+08/11/2022: Revise the codes to speed up the cirque delineation by turning off the plan_clos calculation. Plan_clos can be derived using ACME tool later after determining the cirque outlines.
+
+
 # Contact info
 Yingkui Li
 
