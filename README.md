@@ -22,9 +22,23 @@ The github site includes a AutoCirque.tbx file and a python folder, including th
 
 A zip file of the while github folder will be downloaded to the local computer. Unzip this file will create a AutoCirque-main folder with both the tbx file and the python folder and three code files. The user can use this toolbox, check the codes, and comtinue imporving this toolbox.
 
-The 'Cirque Auto-Delineation' tool may have some errors (unable to allocate memory) when processing a reltively large DEM (when processing >600 potential cirque thresholds). If this happens, try to run this tool in ArcGIS Pro or you can run the 'Cirque Potential Thresholds' tool to generate the threshold points/cross sections, select the suitable threshold points/cross sections, and use the 'Cirque Delineation By Threshold Features' tool to delineate the cirque outlines. 
+# How to avoid some potential errors
+The 'Cirque Auto-Delineation' tool may have some errors (unable to allocate memory) when processing a reltively large DEM (when processing >600 potential cirque thresholds). The following are some suggestions to avoid the potential errors: 
+
+(1) Try a small area first. If the program works for a small area, but fails in large area, divide the large area to small areas
+
+(2) Make sure that the default setting for the scratch workspace in ArcGIS does not include space in the path or folder names. The space in the path or folder names may cause unexpected errors in some raster functions.
+
+(3) Make sure the DEM is in a UTM projection.
+
+(4) Restart the ArcGIS/ArcGIS Pro program or the computer.     
+
+(5) Use ArcGIS Pro rather than ArcGIS 10 because ArcGIS Pro has a better memory management with few memory-related issues.
+
+(6) Run the 'Cirque Potential Thresholds' tool to generate the threshold points/cross sections, select the suitable threshold points/cross sections, and use the 'Cirque Delineation By Threshold Features' tool to delineate the cirque outlines.
 
 Please report any errors or questions to Yingkui Li (yli32@utk.edu).
+
 
 # Cite this work
 Li Y. and Zhao, Z., 2021. AutoCirque: An automated method to delineate glacial cirque outlines from digital elevation models. Geomorphology, https://doi.org/10.1016/j.geomorph.2021.108059.
